@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>CloudTech Help Desk</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#eef3f8;color:#14263d;font:16px system-ui,sans-serif}header{background:#10243c;color:white;padding:24px max(24px,calc((100vw - 860px)/2));font-weight:700;letter-spacing:.5px}header span{color:#60d5c9}main{max-width:760px;margin:60px auto;padding:0 24px}.tag{color:#286c72;font-size:13px;font-weight:700;letter-spacing:2px}h1{font-size:clamp(30px,6vw,44px);line-height:1.15;margin:14px 0}p{color:#52637a;line-height:1.6}.card{background:white;border:1px solid #dae3ed;border-radius:18px;padding:28px;margin-top:28px;box-shadow:0 12px 35px #10243c08}label{display:block;font-weight:650;margin-bottom:12px}textarea{width:100%;min-height:140px;padding:15px;border:1px solid #aebdce;border-radius:10px;font:inherit;resize:vertical}textarea:focus{outline:3px solid #b5ebe7;border-color:#187a78}button{background:#126c70;color:white;border:0;border-radius:9px;font:600 16px system-ui;padding:13px 22px;margin-top:16px;cursor:pointer}button:disabled{opacity:.6;cursor:wait}button:focus-visible{outline:3px solid #69b9cf;outline-offset:3px}#status{min-height:24px;font-size:14px}#answer{white-space:pre-wrap;line-height:1.7}h2{font-size:20px}footer{font-size:13px;color:#60738a;margin:28px 0} [hidden]{display:none}
+</style>
+</head>
+<body>
+<header>Cloud<span>Tech</span> / HELP DESK</header>
+<main>
+<div class="tag">IT SUPPORT, SIMPLIFIED</div>
+<h1>Let’s get you back to work.</h1>
+<p>Describe your technical issue to receive basic troubleshooting guidance.</p>
+<section class="card">
+<form id="helpdesk">
+<label for="message">What do you need help with?</label>
+<textarea id="message" name="message" maxlength="4000" required placeholder="Example: My computer cannot connect to the internet."></textarea>
+<button id="submit" type="submit">Get help →</button>
+<p id="status" role="status" aria-live="polite"></p>
+</form>
+<section id="result" hidden aria-labelledby="result-title"><h2 id="result-title">Suggested next steps</h2><div id="answer"></div></section>
+</section>
+<footer>CloudTech portfolio demo · Rule-based troubleshooting · Do not enter passwords or sensitive information.</footer>
+</main>
+<script>
+const API_URL = 'https://bm6uf83ood.execute-api.us-east-1.amazonaws.com/helpdesk';
+const form = document.getElementById('helpdesk');
+const button = document.getElementById('submit');
+const status = document.getElementById('status');
+const result = document.getElementById('result');
+form.addEventListener('submit', async (event) => {
+  event.preventDefault();
+  const message = document.getElementById('message').value.trim();
+  if (!message) { status.textContent = 'Please describe your issue.'; return; }
+  button.disabled = true;
+  result.hidden = true;
+  status.textContent = 'Getting troubleshooting guidance…';
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 30000);
+  try {
+    const response = await fetch(API_URL, {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({message}), signal: controller.signal
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || `Request failed (HTTP ${response.status}).`);
+    if (typeof data.answer !== 'string') throw new Error('The server returned an unexpected response.');
+    document.getElementById('answer').textContent = data.answer;
+    result.hidden = false;
+    status.textContent = 'Response received.';
+  } catch (error) {
+    status.textContent = error.name === 'AbortError'
+      ? 'The request timed out. Please try again.'
+      : error instanceof TypeError
+        ? 'Unable to reach the help desk. Check your connection and try again. If this continues, check the API CORS settings.'
+        : error.message;
+  } finally {
+    clearTimeout(timer);
+    button.disabled = false;
+  }
+});
+</script>
+</body>
+</html>
