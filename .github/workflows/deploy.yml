@@ -1,0 +1,81 @@
+name: CloudTech Deploy
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "backend/**"
+      - "frontend/**"
+      - ".github/workflows/deploy.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: cloudtech-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    env:
+      AWS_REGION: us-east-1
+      AWS_PAGER: ""
+      FUNCTION_NAME: Cloudtech-UI-HelpDesk
+      WEBSITE_BUCKET: cloudtech-helpdesk-ui-juste-2026
+      DISTRIBUTION_ID: E38OEN5SZ759DC
+
+    steps:
+      - name: Download repository code
+        uses: actions/checkout@v5
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.14"
+
+      - name: Validate deployment files
+        run: |
+          python -m py_compile backend/lambda_function.py
+          test -s frontend/index.html
+
+      - name: Package Lambda
+        run: |
+          cd backend
+          zip ../lambda.zip lambda_function.py
+
+      - name: Connect to AWS
+        uses: aws-actions/configure-aws-credentials@v6.3.0
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+          mask-aws-account-id: true
+
+      - name: Deploy Lambda code
+        run: |
+          aws lambda update-function-code \
+            --function-name "$FUNCTION_NAME" \
+            --zip-file fileb://lambda.zip \
+            --query 'LastUpdateStatus' \
+            --output text
+          aws lambda wait function-updated \
+            --function-name "$FUNCTION_NAME"
+
+      - name: Upload website
+        run: |
+          aws s3 cp frontend/ "s3://$WEBSITE_BUCKET/" \
+            --recursive \
+            --only-show-errors
+
+      - name: Refresh CloudFront cache
+        run: |
+          aws cloudfront create-invalidation \
+            --distribution-id "$DISTRIBUTION_ID" \
+            --paths "/*" \
+            --query 'Invalidation.Id' \
+            --output text
