@@ -1,4 +1,4 @@
-name: connect to AWS
+name: CloudTech Deploy
 
 on:
   push:
@@ -48,10 +48,13 @@ jobs:
         run: |
           cd backend
           zip ../lambda.zip lambda_function.py
-- name: Check GitHub identity
+
+      - name: Check GitHub identity
         shell: python
         run: |
-          import os, json, base64
+          import os
+          import json
+          import base64
           import urllib.request
 
           url = os.environ["ACTIONS_ID_TOKEN_REQUEST_URL"]
@@ -68,16 +71,20 @@ jobs:
 
           payload = token.split(".")[1]
           claims = json.loads(
-              base64.urlsafe_b64decode(payload + "=" * (-len(payload) % 4))
+              base64.urlsafe_b64decode(
+                  payload + "=" * (-len(payload) % 4)
+              )
           )
           print("Subject:", claims["sub"])
           print("Audience:", claims["aud"])
+
       - name: Connect to AWS
         uses: aws-actions/configure-aws-credentials@v6.3.0
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
           mask-aws-account-id: true
+          retry-max-attempts: 2
 
       - name: Deploy Lambda code
         run: |
