@@ -1,4 +1,4 @@
-name: CloudTech Deploy
+name: connect to AWS
 
 on:
   push:
